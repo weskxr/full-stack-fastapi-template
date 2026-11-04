@@ -1,5 +1,6 @@
 import uuid
 from datetime import timedelta
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -113,7 +114,13 @@ def test_self_profile_and_signup_cannot_assign_privileges(
     assert response.status_code == 200
     assert response.json()["full_name"] == "Updated profile"
 
-    for privileges in ({"role": "admin"}, {"is_superuser": True}):
+    for privileges in (
+        {"role": "admin"},
+        {"is_superuser": True},
+        {"is_active": True},
+        {"id": str(uuid.uuid4())},
+        {"hashed_password": "forged-hash"},
+    ):
         response = client.patch(
             f"{settings.API_V1_STR}/users/me", headers=headers, json=privileges
         )
@@ -175,3 +182,115 @@ def test_protected_routes_reject_invalid_authentication(
         response = client.get(f"{settings.API_V1_STR}{path}", headers=headers)
         assert response.status_code == 401
         assert response.headers["www-authenticate"] == "Bearer"
+
+
+@pytest.mark.parametrize("role", list(UserRole))
+def test_deactivation_revokes_existing_token(
+    client: TestClient, db: Session, role: UserRole
+) -> None:
+    user, headers = create_role_user(client, db, role)
+    user.is_active = False
+    db.add(user)
+    db.commit()
+
+    for path in ("/users/me", "/users/", "/metrics/", "/items/"):
+        response = client.get(f"{settings.API_V1_STR}{path}", headers=headers)
+        assert response.status_code == 403
+        assert response.json()["detail"] == "Inactive user"
+
+
+@pytest.mark.parametrize("field", ["email", "is_active", "password"])
+def test_user_updates_reject_null_required_values(
+    client: TestClient, db: Session, superuser_token_headers: dict[str, str], field: str
+) -> None:
+    user, headers = create_role_user(client, db, UserRole.manager)
+    original_email = user.email
+    response = client.patch(
+        f"{settings.API_V1_STR}/users/{user.id}",
+        headers=superuser_token_headers,
+        json={field: None},
+    )
+    assert response.status_code == 422
+    if field == "email":
+        response = client.patch(
+            f"{settings.API_V1_STR}/users/me", headers=headers, json={field: None}
+        )
+        assert response.status_code == 422
+    db.refresh(user)
+    assert user.email == original_email
+    assert user.is_active
+    assert user.role == UserRole.manager
+
+
+def test_partial_admin_update_preserves_role(
+    client: TestClient, db: Session, superuser_token_headers: dict[str, str]
+) -> None:
+    user, _ = create_role_user(client, db, UserRole.manager)
+    response = client.patch(
+        f"{settings.API_V1_STR}/users/{user.id}",
+        headers=superuser_token_headers,
+        json={"full_name": None},
+    )
+    assert response.status_code == 200
+    assert response.json()["role"] == "manager"
+    assert response.json()["full_name"] is None
+
+
+@pytest.mark.parametrize("role", list(UserRole))
+def test_item_mutations_respect_ownership(
+    client: TestClient, db: Session, role: UserRole
+) -> None:
+    user, headers = create_role_user(client, db, role)
+    other_item = create_random_item(db)
+    response = client.post(
+        f"{settings.API_V1_STR}/items/",
+        headers=headers,
+        json={"title": "Own item", "owner_id": str(other_item.owner_id)},
+    )
+    assert response.status_code == 200
+    own_item_id = response.json()["id"]
+    assert response.json()["owner_id"] == str(user.id)
+    response = client.get(f"{settings.API_V1_STR}/items/", headers=headers)
+    listed_ids = {item["id"] for item in response.json()["data"]}
+    assert own_item_id in listed_ids
+    assert (str(other_item.id) in listed_ids) == (role == UserRole.admin)
+
+    for item_id, expected in (
+        (own_item_id, 200),
+        (str(other_item.id), 200 if role == UserRole.admin else 403),
+    ):
+        response = client.put(
+            f"{settings.API_V1_STR}/items/{item_id}",
+            headers=headers,
+            json={"title": "Updated"},
+        )
+        assert response.status_code == expected
+        response = client.delete(
+            f"{settings.API_V1_STR}/items/{item_id}", headers=headers
+        )
+        assert response.status_code == expected
+
+
+@pytest.mark.parametrize("role", list(UserRole))
+def test_admin_utilities_require_admin(
+    client: TestClient, db: Session, role: UserRole
+) -> None:
+    user, headers = create_role_user(client, db, role)
+    expected = 200 if role == UserRole.admin else 403
+    response = client.post(
+        f"{settings.API_V1_STR}/password-recovery-html-content/{user.email}",
+        headers=headers,
+    )
+    assert response.status_code == expected
+    if role == UserRole.admin:
+        assert response.headers["subject"]
+        assert "text/html" in response.headers["content-type"]
+
+    with patch("app.api.routes.utils.send_email") as send_email:
+        response = client.post(
+            f"{settings.API_V1_STR}/utils/test-email/",
+            headers=headers,
+            params={"email_to": user.email},
+        )
+        assert response.status_code == (201 if role == UserRole.admin else 403)
+        assert send_email.called == (role == UserRole.admin)

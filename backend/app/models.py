@@ -1,8 +1,9 @@
 import uuid
 from datetime import UTC, datetime
 from enum import StrEnum
+from typing import Self
 
-from pydantic import EmailStr
+from pydantic import EmailStr, field_validator, model_validator
 from sqlalchemy import Enum
 from sqlmodel import Field, Relationship, SQLModel
 
@@ -54,6 +55,13 @@ class UserUpdate(SQLModel):
     full_name: str | None = Field(default=None, max_length=255)
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
+    @model_validator(mode="after")
+    def validate_non_nullable_updates(self) -> Self:
+        for field in ("email", "is_active", "password"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
 
 class UserUpdateMe(SQLModel):
     model_config = SQLModel.model_config.copy()
@@ -61,6 +69,13 @@ class UserUpdateMe(SQLModel):
 
     full_name: str | None = Field(default=None, max_length=255)
     email: EmailStr | None = Field(default=None, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: EmailStr | None) -> EmailStr:
+        if value is None:
+            raise ValueError("email cannot be null")
+        return value
 
 
 class UpdatePassword(SQLModel):
