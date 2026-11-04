@@ -55,6 +55,25 @@ FastAPI dependencies enforce endpoint access through `require_roles(...)`; owner
 
 The frontend learns the role from `/users/me` through the generated OpenAPI client. A single frontend permission map controls route access, sidebar links, and user-management controls. Direct unauthorized navigation and API permission failures show a friendly Access Denied message without signing the user out. Backend checks remain authoritative; query caches are cleared when changing accounts. The frontend map intentionally mirrors the small backend policy and is covered by role-focused tests.
 
+The alternatives and trade-offs are recorded in [ADR 001: role storage and API authorization](docs/adr/001-role-storage-and-api-authorization.md) and [ADR 002: frontend permissions and forbidden states](docs/adr/002-frontend-permissions-and-forbidden-states.md).
+
+```mermaid
+flowchart TD
+    UI[React app] -->|Bearer token| AUTH[FastAPI authentication dependency]
+    AUTH --> DB[(Load current user from PostgreSQL)]
+    AUTH -->|Missing or invalid credentials| UNAUTH[401: sign in]
+    DB -->|Account no longer exists| UNAUTH
+    DB -->|Inactive account| DENIED[403: Access Denied]
+    DB -->|Active user| POLICY[Endpoint role and ownership checks]
+    POLICY --> DENIED
+    POLICY --> HANDLER[Run allowed endpoint and return response]
+    HANDLER -->|User role from /users/me| UI
+    UI --> MAP[Frontend permission map]
+    MAP --> NAV[Hide unavailable links and controls]
+    MAP --> GUARD[Guard protected routes]
+    GUARD -->|Denied| PAGE[Access Denied page]
+```
+
 ## Migrations and checks
 
 `scripts/prestart.sh` runs `alembic upgrade head` and creates the initial admin. Existing databases are migrated automatically; downgrading the role migration maps admins back to superusers and managers/members back to ordinary users.
@@ -86,7 +105,7 @@ bunx playwright test tests/roles.spec.ts
 bun run build
 ```
 
-Run `bash scripts/generate-client.sh` from the repository root after API schema changes. The implementation keeps the existing UI and test infrastructure; optional ADRs, diagrams, and a new global-settings feature are outside this task's scope.
+Run `bash scripts/generate-client.sh` from the repository root after API schema changes. See [implementation notes](NOTES.md) for verification details and scope limits.
 
 [![Test Docker Compose](../../actions/workflows/test-docker-compose.yml/badge.svg)](../../actions/workflows/test-docker-compose.yml)
 [![Test Backend](../../actions/workflows/test-backend.yml/badge.svg)](../../actions/workflows/test-backend.yml)
