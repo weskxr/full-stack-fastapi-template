@@ -7,7 +7,7 @@ Requirements: Python 3.14, [uv](https://docs.astral.sh/uv/), [Bun](https://bun.s
 From the repository root:
 
 ```bash
-docker compose up -d db mailpit
+docker compose up -d --wait db mailpit
 bun install --frozen-lockfile
 cd backend
 uv sync --frozen
@@ -75,6 +75,8 @@ uv run bash scripts/lint.sh
 ```
 
 For only the authorization scenarios, run `uv run pytest tests/api/routes/test_roles.py`. These cover allowed/denied access, cross-user boundaries, privilege injection, role changes with existing tokens, and authentication failures.
+
+Invalid null values for email, active status, or password return `422` without changing the user. Disabling an account also blocks its existing tokens; the frontend shows Access Denied and allows logout.
 
 With the backend and frontend running, from `frontend/`:
 
