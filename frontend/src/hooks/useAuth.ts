@@ -15,12 +15,25 @@ const isLoggedIn = () => {
   return localStorage.getItem("access_token") !== null
 }
 
+const useLogout = () => {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  return async () => {
+    localStorage.removeItem("access_token")
+    await queryClient.cancelQueries()
+    queryClient.clear()
+    navigate({ to: "/login" })
+  }
+}
+
 const useAuth = () => {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const logout = useLogout()
   const { showErrorToast } = useCustomToast()
 
-  const { data: user } = useQuery<UserPublic | null, Error>({
+  const { data: user, error } = useQuery<UserPublic | null, Error>({
     queryKey: ["currentUser"],
     queryFn: async () => (await UsersService.readUserMe()).data,
     enabled: isLoggedIn(),
@@ -55,20 +68,14 @@ const useAuth = () => {
     onError: handleError.bind(showErrorToast),
   })
 
-  const logout = async () => {
-    localStorage.removeItem("access_token")
-    await queryClient.cancelQueries()
-    queryClient.clear()
-    navigate({ to: "/login" })
-  }
-
   return {
     signUpMutation,
     loginMutation,
     logout,
     user,
+    error,
   }
 }
 
-export { isLoggedIn }
+export { isLoggedIn, useLogout }
 export default useAuth

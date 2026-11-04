@@ -1,5 +1,5 @@
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router"
-
+import ErrorComponent from "@/components/Common/ErrorComponent"
 import { Footer } from "@/components/Common/Footer"
 import AppSidebar from "@/components/Sidebar/AppSidebar"
 import {
@@ -7,7 +7,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
-import { isLoggedIn } from "@/hooks/useAuth"
+import useAuth, { isLoggedIn } from "@/hooks/useAuth"
 
 export const Route = createFileRoute("/_layout")({
   component: Layout,
@@ -21,6 +21,8 @@ export const Route = createFileRoute("/_layout")({
 })
 
 function Layout() {
+  const { error } = useAuth()
+
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -30,7 +32,7 @@ function Layout() {
         </header>
         <main className="flex-1 p-6 md:p-8">
           <div className="mx-auto max-w-7xl">
-            <Outlet />
+            {error ? <ErrorComponent error={error} /> : <Outlet />}
           </div>
         </main>
         <Footer />

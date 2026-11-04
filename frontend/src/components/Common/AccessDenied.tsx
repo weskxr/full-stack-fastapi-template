@@ -1,8 +1,11 @@
 import { Link } from "@tanstack/react-router"
 
 import { Button } from "@/components/ui/button"
+import { useLogout } from "@/hooks/useAuth"
 
 export default function AccessDenied() {
+  const logout = useLogout()
+
   return (
     <div className="flex min-h-64 flex-col items-center justify-center gap-4 p-6 text-center">
       <h1 className="text-2xl font-bold">Access Denied</h1>
@@ -11,6 +14,9 @@ export default function AccessDenied() {
       </p>
       <Button asChild>
         <Link to="/">Go Home</Link>
+      </Button>
+      <Button variant="outline" onClick={logout}>
+        Log out
       </Button>
     </div>
   )
