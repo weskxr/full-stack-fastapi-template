@@ -2,6 +2,9 @@ import { AxiosError } from "axios"
 
 function extractErrorMessage(err: Error): string {
   if (err instanceof AxiosError) {
+    if (err.response?.status === 403) {
+      return "Access denied. You don't have permission to perform this action."
+    }
     const errDetail = (err.response?.data as any)?.detail
     if (Array.isArray(errDetail) && errDetail.length > 0) {
       return errDetail[0].msg

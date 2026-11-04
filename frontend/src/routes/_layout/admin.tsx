@@ -1,5 +1,5 @@
 import { useSuspenseQuery } from "@tanstack/react-query"
-import { createFileRoute, redirect } from "@tanstack/react-router"
+import { createFileRoute } from "@tanstack/react-router"
 import { Suspense } from "react"
 
 import { type UserPublic, UsersService } from "@/client"
@@ -8,6 +8,7 @@ import { columns, type UserTableData } from "@/components/Admin/columns"
 import { DataTable } from "@/components/Common/DataTable"
 import PendingUsers from "@/components/Pending/PendingUsers"
 import useAuth from "@/hooks/useAuth"
+import { can, requirePermission } from "@/lib/permissions"
 
 function getUsersQueryOptions() {
   return {
@@ -19,14 +20,7 @@ function getUsersQueryOptions() {
 
 export const Route = createFileRoute("/_layout/admin")({
   component: Admin,
-  beforeLoad: async () => {
-    const { data: user } = await UsersService.readUserMe()
-    if (!user.is_superuser) {
-      throw redirect({
-        to: "/",
-      })
-    }
-  },
+  beforeLoad: () => requirePermission("users:read"),
   head: () => ({
     meta: [
       {
@@ -57,6 +51,8 @@ function UsersTable() {
 }
 
 function Admin() {
+  const { user } = useAuth()
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -66,7 +62,7 @@ function Admin() {
             Manage user accounts and permissions
           </p>
         </div>
-        <AddUser />
+        {can(user, "users:manage") && <AddUser />}
       </div>
       <UsersTable />
     </div>
