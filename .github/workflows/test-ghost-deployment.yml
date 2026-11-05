@@ -1,0 +1,39 @@
+name: Test Ghost deployment
+
+on:
+  pull_request:
+    paths:
+      - infra/ghost/**
+      - .github/workflows/test-ghost-deployment.yml
+  push:
+    branches:
+      - master
+    paths:
+      - infra/ghost/**
+      - .github/workflows/test-ghost-deployment.yml
+
+permissions:
+  contents: read
+
+jobs:
+  deployment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: infra/ghost
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+      - run: terraform init -backend=false -input=false -lockfile=readonly
+      - run: terraform fmt -check -recursive
+      - run: terraform validate
+      - run: terraform test
+      - run: python3 -m unittest discover -s tests -v
+      - run: shellcheck deploy.sh bootstrap.sh backup.sh tests/smoke.sh
+      - run: bash tests/smoke.sh

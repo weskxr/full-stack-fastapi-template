@@ -1,0 +1,17 @@
+[Unit]
+Description=Ghost blog
+Requires=docker.service
+Wants=network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/ghost
+ExecStart=/usr/bin/docker compose up -d --wait --wait-timeout 300
+ExecStop=/usr/bin/docker compose stop
+TimeoutStartSec=900
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target

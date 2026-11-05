@@ -1,7 +1,10 @@
 import uuid
 from datetime import UTC, datetime
+from enum import StrEnum
+from typing import Self
 
-from pydantic import EmailStr
+from pydantic import EmailStr, field_validator, model_validator
+from sqlalchemy import Enum
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -9,11 +12,24 @@ def get_datetime_utc() -> datetime:
     return datetime.now(UTC)
 
 
+class UserRole(StrEnum):
+    admin = "admin"
+    manager = "manager"
+    member = "member"
+
+
 # Shared properties
 class UserBase(SQLModel):
     email: EmailStr = Field(unique=True, index=True, max_length=255)
     is_active: bool = True
-    is_superuser: bool = False
+    role: UserRole = Field(
+        default=UserRole.member,
+        sa_type=Enum(
+            UserRole, name="user_role", native_enum=False, create_constraint=True
+        ),
+        sa_column_kwargs={"server_default": "member"},
+        nullable=False,
+    )
     full_name: str | None = Field(default=None, max_length=255)
 
 
@@ -23,6 +39,9 @@ class UserCreate(UserBase):
 
 
 class UserRegister(SQLModel):
+    model_config = SQLModel.model_config.copy()
+    model_config["extra"] = "forbid"
+
     email: EmailStr = Field(max_length=255)
     password: str = Field(min_length=8, max_length=128)
     full_name: str | None = Field(default=None, max_length=255)
@@ -32,14 +51,31 @@ class UserRegister(SQLModel):
 class UserUpdate(SQLModel):
     email: EmailStr | None = Field(default=None, max_length=255)
     is_active: bool | None = None
-    is_superuser: bool | None = None
+    role: UserRole = UserRole.member
     full_name: str | None = Field(default=None, max_length=255)
     password: str | None = Field(default=None, min_length=8, max_length=128)
 
+    @model_validator(mode="after")
+    def validate_non_nullable_updates(self) -> Self:
+        for field in ("email", "is_active", "password"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
 
 class UserUpdateMe(SQLModel):
+    model_config = SQLModel.model_config.copy()
+    model_config["extra"] = "forbid"
+
     full_name: str | None = Field(default=None, max_length=255)
     email: EmailStr | None = Field(default=None, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: EmailStr | None) -> EmailStr:
+        if value is None:
+            raise ValueError("email cannot be null")
+        return value
 
 
 class UpdatePassword(SQLModel):
@@ -57,8 +93,14 @@ class User(UserBase, table=True):
 
 # Properties to return via API, id is always required
 class UserPublic(UserBase):
+    role: UserRole
     id: uuid.UUID
     created_at: datetime | None = None
+
+
+class MetricsPublic(SQLModel):
+    total_users: int
+    total_items: int
 
 
 class UsersPublic(SQLModel):
@@ -118,7 +160,7 @@ class Token(SQLModel):
 
 # Contents of JWT token
 class TokenPayload(SQLModel):
-    sub: str | None = None
+    sub: uuid.UUID
 
 
 class NewPassword(SQLModel):

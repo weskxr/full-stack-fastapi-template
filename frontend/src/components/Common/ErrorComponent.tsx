@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router"
+import { AxiosError } from "axios"
 import { Button } from "@/components/ui/button"
+import { AccessDeniedError } from "@/lib/permissions"
+import AccessDenied from "./AccessDenied"
 
-const ErrorComponent = () => {
+const ErrorComponent = ({ error }: { error: unknown }) => {
+  if (
+    error instanceof AccessDeniedError ||
+    (error instanceof AxiosError && error.response?.status === 403)
+  ) {
+    return <AccessDenied />
+  }
+
   return (
     <div
       className="flex min-h-screen items-center justify-center flex-col p-4"
