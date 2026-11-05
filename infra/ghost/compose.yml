@@ -1,0 +1,82 @@
+name: ghost
+
+services:
+  db:
+    image: mysql:8.0@sha256:7dcddc01f13bab2f15cde676d44d01f61fc9f99fe7785e86196dfc07d358ae2b
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - mysql:/var/lib/mysql
+    networks:
+      - database
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u ghost -D ghost -e "SELECT 1" >/dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  ghost:
+    image: ghost:6-alpine@sha256:bea7100f19d83b23c234fd8ad94a90505552f7b0f5f307b079907c1fd03dbdf7
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    volumes:
+      - content:/var/lib/ghost/content
+      - ./config.production.json:/var/lib/ghost/config.production.json:ro
+    networks:
+      - database
+      - web
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, node, -e, "require('http').get({host:'127.0.0.1',port:2368,path:'/',headers:{Host:new URL(require('/var/lib/ghost/config.production.json').url).host,'X-Forwarded-Proto':'https'}},r=>{r.resume();process.exit(r.statusCode===200?0:1)}).on('error',()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+  proxy:
+    image: nginx:stable-alpine@sha256:0e52bd054126cdc040b1276c0af347aeb02a41b9cfe305d6094767ac30e97949
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:8080:8080
+      - 127.0.0.1:8081:8081
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - web
+    depends_on:
+      ghost:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/healthz]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  database:
+    internal: true
+  web:
+
+volumes:
+  mysql:
+  content:

@@ -1,5 +1,7 @@
 # Full Stack FastAPI Template
 
+For the Ghost/Hetzner infrastructure task, see [one-command Ghost deployment](infra/ghost/README.md).
+
 ## Run the RBAC demo
 
 Requirements: Python 3.14, [uv](https://docs.astral.sh/uv/), [Bun](https://bun.sh/), and Docker Compose for PostgreSQL 18 and Mailpit. The tracked `.env` contains local development defaults; use separate secrets for deployment.
