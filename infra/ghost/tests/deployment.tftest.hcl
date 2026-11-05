@@ -82,6 +82,11 @@ run "secure_deployment" {
     condition     = local.ghost_config.url == "https://blog.example.com" && local.ghost_config.admin.url == "https://ghost-admin.example.com" && !can(local.ghost_config.database.connection.password)
     error_message = "Ghost must use HTTPS, a separate admin hostname, and server-generated database credentials."
   }
+
+  assert {
+    condition     = strcontains(local.files["/opt/ghost/nginx.conf"].content, "proxy_set_header Host ghost-admin.example.com;") && strcontains(local.files["/opt/ghost/nginx.conf"].content, "proxy_set_header X-Forwarded-Host ghost-admin.example.com;")
+    error_message = "The public Content API must reach Ghost's backend virtual host without redirecting visitors to the protected admin domain."
+  }
 }
 
 run "reject_duplicate_hostnames" {

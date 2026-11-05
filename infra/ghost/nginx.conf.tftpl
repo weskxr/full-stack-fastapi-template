@@ -22,6 +22,11 @@ http {
         }
 
         location ^~ /ghost/api/content/ {
+            proxy_set_header Host ${admin_hostname};
+            proxy_set_header X-Forwarded-Host ${admin_hostname};
+            proxy_set_header X-Forwarded-Proto https;
+            proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
+            proxy_set_header X-Real-IP $http_cf_connecting_ip;
             proxy_pass http://ghost:2368;
         }
 

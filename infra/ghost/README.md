@@ -27,7 +27,7 @@ flowchart LR
 - `cloudflared` runs on the host, connects outbound, and forwards to loopback listeners. Egress remains permitted, including Cloudflare TCP/UDP 7844, DNS, and package/image downloads.
 - The blog is public. The admin and SSH hostnames require the configured email through Cloudflare Access. The connector also validates Access JWTs before forwarding these requests.
 - SSH requires the administrator's private key after Access authentication. Root login, password login, keyboard-interactive login, and public SSH listeners are disabled. Ubuntu's SSH socket activation is disabled explicitly.
-- Nginx normalizes request paths, blocks public Ghost administration/setup routes, and supplies HTTPS proxy headers. The public Content API remains available with Ghost's own API-key authentication, preserving native search and integrations.
+- Nginx normalizes request paths, blocks public Ghost administration/setup routes, and supplies HTTPS proxy headers. Public Content API requests use the configured admin hostname only on the internal upstream connection, reaching Ghost's backend virtual host without redirecting readers through Access. Ghost's API-key authentication remains enforced.
 - Ghost and MySQL have persistent Docker volumes. MySQL has no published port and uses an internal Docker network. Images are pinned by digest; `cloudflared` is pinned by version and SHA-256.
 - This is a single-server deployment, without high availability. Losing Cloudflare connectivity temporarily removes both blog access and tunneled administration.
 

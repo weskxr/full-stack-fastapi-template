@@ -28,7 +28,7 @@ locals {
   })
   files = {
     "/opt/ghost/compose.yml"                             = { content = file("${path.module}/compose.yml"), permissions = "0600" }
-    "/opt/ghost/nginx.conf"                              = { content = file("${path.module}/nginx.conf"), permissions = "0644" }
+    "/opt/ghost/nginx.conf"                              = { content = templatefile("${path.module}/nginx.conf.tftpl", { admin_hostname = local.hostnames.admin }), permissions = "0644" }
     "/opt/ghost/config.base.json"                        = { content = jsonencode(local.ghost_config), permissions = "0600" }
     "/opt/ghost/bootstrap.sh"                            = { content = file("${path.module}/bootstrap.sh"), permissions = "0700" }
     "/opt/ghost/backup.sh"                               = { content = file("${path.module}/backup.sh"), permissions = "0700" }

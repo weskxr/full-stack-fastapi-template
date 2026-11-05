@@ -21,13 +21,13 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-cp "$root/compose.yml" "$root/nginx.conf" "$temporary/"
-chmod 644 "$temporary/nginx.conf"
-python3 - "$temporary" <<'PY'
+cp "$root/compose.yml" "$temporary/"
+python3 - "$temporary" "$root/nginx.conf.tftpl" <<'PY'
 import json
 from pathlib import Path
 import secrets
 import sys
+from urllib.parse import urlsplit
 
 root = Path(sys.argv[1])
 password = secrets.token_hex(32)
@@ -43,6 +43,9 @@ config = {
 }
 (root / 'config.production.json').write_text(json.dumps(config))
 (root / 'config.production.json').chmod(0o644)
+template = Path(sys.argv[2]).read_text()
+(root / 'nginx.conf').write_text(template.replace('${admin_hostname}', urlsplit(config['admin']['url']).hostname))
+(root / 'nginx.conf').chmod(0o644)
 PY
 
 compose config --quiet
